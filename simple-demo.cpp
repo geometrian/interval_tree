@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include <cstdio>
 
-#include "interval_tree.hpp"
+#include "interval-tree.hpp"
 
 
 #define LEFT -5.0f

@@ -18,6 +18,7 @@ template <                  typename T> class interval_tree<1,T> final {
 	public:
 		class interval final { public:
 			T left, right;
+			void* user_ptr;
 			inline bool not_lt(T val) const { return left <=val; }
 			inline bool not_gt(T val) const { return val<=right; }
 			inline bool intersects(T val) const { return left<=val && val<=right; }
@@ -37,7 +38,7 @@ template <                  typename T> class interval_tree<1,T> final {
 				using typename _parent_t::pointer;
 				using typename _parent_t::reference;
 			public:
-				inline _iterator(interval_tree_t* parent, size_t i) : _parent(parent), _i(i) {}
+				inline _iterator(interval_tree_t* parent, size_t i) : _parent(parent), _i(i) {} //TODO: private!
 				inline reference operator*(void) const { return _parent->_search_tree[_i]; }
 				inline pointer operator->(void) const { return _parent->_search_tree.data()+_i; }
 				inline _self_t& operator++(void) { ++_i; return *this; }
@@ -71,8 +72,8 @@ template <                  typename T> class interval_tree<1,T> final {
 				vector<_search_interval> _intervals_by_l, _intervals_by_r;
 			public:
 				_Node(interval_tree* parent, vector<interval> const& intervals) {
-					T left  = std::numeric_limits<T>::   max();
-					T right = std::numeric_limits<T>::lowest();
+					T left  = numeric_limits<T>::   max();
+					T right = numeric_limits<T>::lowest();
 					for (interval const& i : intervals) {
 						//assert_term(i.left<=i.right,"Invalid interval!");
 						left  = min(left, i. left);
@@ -139,7 +140,7 @@ template <                  typename T> class interval_tree<1,T> final {
 		inline void intersect(       T point, vector<interval>* result) const { _interval_tree->template intersect<true>(point,result); }
 		       void intersect(interval     i, vector<interval>* result) const {
 			//Find all intervals with `.left` or `.right` inside `i`.
-			auto iter = std::lower_bound(_search_tree.cbegin(),_search_tree.cend(), i, [](_search_key const& a,interval const& i)->bool{return !i.intersects(a.key);});
+			auto iter = lower_bound(_search_tree.cbegin(),_search_tree.cend(), i, [](_search_key const& a,interval const& i)->bool{return !i.intersects(a.key);});
 			if (iter<_search_tree.cend()) {
 				LOOP:
 					_search_key const& sk = *iter;
@@ -157,12 +158,12 @@ template <                  typename T> class interval_tree<1,T> final {
 			for (_search_key const& sk : _search_tree) sk.si->selected=false;
 		}
 
-		      iterator  begin(void)       noexcept { return { this,                   0 }; }
-		const_iterator  begin(void) const noexcept { return { this,                   0 }; }
-		const_iterator cbegin(void) const noexcept { return { this,                   0 }; }
-		      iterator    end(void)       noexcept { return { this, _search_tree.size() }; }
-		const_iterator    end(void) const noexcept { return { this, _search_tree.size() }; }
-		const_iterator   cend(void) const noexcept { return { this, _search_tree.size() }; }
+		inline       iterator  begin(void)       noexcept { return { this,                   0 }; }
+		inline const_iterator  begin(void) const noexcept { return { this,                   0 }; }
+		inline const_iterator cbegin(void) const noexcept { return { this,                   0 }; }
+		inline       iterator    end(void)       noexcept { return { this, _search_tree.size() }; }
+		inline const_iterator    end(void) const noexcept { return { this, _search_tree.size() }; }
+		inline const_iterator   cend(void) const noexcept { return { this, _search_tree.size() }; }
 };
 
 
