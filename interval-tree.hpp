@@ -19,8 +19,8 @@ template <                  typename T> class interval_tree<1,T> final {
 		class interval final { public:
 			T left, right;
 			void* user_ptr;
-			inline bool not_lt(T val) const { return left <=val; }
-			inline bool not_gt(T val) const { return val<=right; }
+			inline bool not_lt(T val) const { return left <=val; } //`!(val<left )`
+			inline bool not_gt(T val) const { return val<=right; } //`!(val>right)`
 			inline bool intersects(T val) const { return left<=val && val<=right; }
 		};
 
@@ -63,13 +63,18 @@ template <                  typename T> class interval_tree<1,T> final {
 		typedef _iterator<interval_tree const> const_iterator;
 
 	private:
-		class _search_interval final { public: interval i; bool mutable selected; };
+		class _search_interval final { public:
+			interval i;
+			bool mutable selected;
+			inline void add_to(vector<interval>* result) const { result->emplace_back(i); selected=true; }
+		};
 		class _search_key final { public: T key; _search_interval const* si; };
 		class _Node final {
 			private:
-				T _center;
+				T _val_center;
 				_Node const *_left, *_right;
-				vector<_search_interval> _intervals_by_l, _intervals_by_r;
+				vector<_search_interval> _center;
+				vector<_search_interval const*> _center_by_l, _center_by_r;
 			public:
 				_Node(interval_tree* parent, vector<interval> const& intervals) {
 					T left  = numeric_limits<T>::   max();
@@ -79,48 +84,49 @@ template <                  typename T> class interval_tree<1,T> final {
 						left  = min(left, i. left);
 						right = max(right,i.right);
 					}
-					_center = (left+right)/2;
+					_val_center = (left+right)/2;
 
 					vector<interval> S_left, S_right;
 					for (interval const& i : intervals) {
-						if      (i.right<_center) S_left .emplace_back(i);
-						else if (i. left>_center) S_right.emplace_back(i);
-						else _intervals_by_l.push_back({i,false});
+						if      (i.right<_val_center) S_left .emplace_back(i);
+						else if (i. left>_val_center) S_right.emplace_back(i);
+						else _center.push_back({i,false});
 					}
-					_intervals_by_r = _intervals_by_l;
-					sort(_intervals_by_l.begin(),_intervals_by_l.end(), [](_search_interval const& a,_search_interval const& b)->bool{return a.i. left<b.i. left;});
-					sort(_intervals_by_r.begin(),_intervals_by_r.end(), [](_search_interval const& a,_search_interval const& b)->bool{return a.i.right>b.i.right;});
+					_center_by_l.reserve(_center.size()); _center_by_r.reserve(_center.size());
+					for (_search_interval const& si : _center) {
+						_center_by_l.emplace_back(&si);
+						_center_by_r.emplace_back(&si);
+					}
+					sort(_center_by_l.begin(),_center_by_l.end(), [](_search_interval const* a,_search_interval const* b)->bool{return a->i. left<b->i. left;});
+					sort(_center_by_r.begin(),_center_by_r.end(), [](_search_interval const* a,_search_interval const* b)->bool{return a->i.right>b->i.right;});
 
 					if (S_left .empty()) _left =nullptr; else _left =_new _Node(parent, S_left );
 					if (S_right.empty()) _right=nullptr; else _right=_new _Node(parent, S_right);
 
 					//Note: must be built once pointers are stable; i.e., after construction.
-					for (_search_interval const& si : _intervals_by_l) {
-						parent->_search_tree.push_back({si.i.left, &si});
-						parent->_search_tree.push_back({si.i.right,&si});
+					for (_search_interval const* si : _center_by_l) {
+						parent->_search_tree.push_back({si->i.left, si});
+						parent->_search_tree.push_back({si->i.right,si});
 					}
 				}
-				inline ~_Node(void) {
-					delete _left;
-					delete _right;
-				}
+				inline ~_Node(void) { delete _left; delete _right; }
 
 				template <bool not_checked> void intersect(T point, vector<interval>* result) const {
-					if        (point<_center) {
-						for (_search_interval const& si : _intervals_by_l) {
-							if (si.i.not_lt(point) && (not_checked||!si.selected)) result->emplace_back(si.i);
+					if        (point<_val_center) {
+						for (_search_interval const* si : _center_by_l) {
+							if (si->i.not_lt(point) && (not_checked||!si->selected)) si->add_to(result);
 							else break;
 						}
 						if (_left !=nullptr) _left->intersect<not_checked>(point,result);
-					} else if (point>_center) {
-						for (_search_interval const& si : _intervals_by_r) {
-							if (si.i.not_gt(point) && (not_checked||!si.selected)) result->emplace_back(si.i);
+					} else if (point>_val_center) {
+						for (_search_interval const* si : _center_by_r) {
+							if (si->i.not_gt(point) && (not_checked||!si->selected)) si->add_to(result);
 							else break;
 						}
 						if (_right!=nullptr) _right->intersect<not_checked>(point,result);
 					} else {
-						for (_search_interval const& si : _intervals_by_l) {
-							if (not_checked||!si.selected) result->emplace_back(si.i);
+						for (_search_interval const* si : _center_by_l) {
+							if (not_checked||!si->selected) si->add_to(result);
 						}
 					}
 				}
@@ -140,14 +146,11 @@ template <                  typename T> class interval_tree<1,T> final {
 		inline void intersect(       T point, vector<interval>* result) const { _interval_tree->template intersect<true>(point,result); }
 		       void intersect(interval     i, vector<interval>* result) const {
 			//Find all intervals with `.left` or `.right` inside `i`.
-			auto iter = lower_bound(_search_tree.cbegin(),_search_tree.cend(), i, [](_search_key const& a,interval const& i)->bool{return !i.intersects(a.key);});
+			auto iter = lower_bound(_search_tree.cbegin(),_search_tree.cend(), i, [](_search_key const& a,interval const& i)->bool{ return a.key<=i.left; });
 			if (iter<_search_tree.cend()) {
 				LOOP:
 					_search_key const& sk = *iter;
-					if (!sk.si->selected) {
-						sk.si->selected = true;
-						result->emplace_back(sk.si->i);
-					}
+					if (!sk.si->selected) sk.si->add_to(result);
 					if (++iter<_search_tree.cend() && i.intersects(iter->key)) goto LOOP;
 			}
 

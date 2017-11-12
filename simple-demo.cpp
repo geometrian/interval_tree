@@ -4,8 +4,14 @@
 #include "interval-tree.hpp"
 
 
-#define LEFT -5.0f
-#define RIGHT 5.0f
+#define BOUNDS 2
+#if BOUNDS == 1
+	#define LEFT -5.0f
+	#define RIGHT 5.0f
+#elif BOUNDS == 2
+	#define LEFT -0.2f/9.0f
+	#define RIGHT 1.2f/9.0f
+#endif
 
 inline static float uniform(void) {
 	return (float)rand() / (float)RAND_MAX;
@@ -43,15 +49,28 @@ static void print_intervals(std::vector<std::interval_tree<1,float>::interval> c
 
 int main(int /*argc*/, char* /*argv*/[]) {
 	{
-		std::vector<std::interval_tree<1,float>::interval> intervals;
-		srand(1); for (int i=0;i<20;++i) {
-			float a = uniform(LEFT,RIGHT);
-			float b = uniform(a,RIGHT);
-			intervals.push_back({a,b});
-		}
-		std::interval_tree<1,float> tree(intervals);
+		#define TREE 2
+		#if TREE == 1
+			std::vector<std::interval_tree<1,float>::interval> intervals;
+			srand(1); for (int i=0;i<20;++i) {
+				float a = uniform(LEFT,RIGHT);
+				float b = uniform(a,RIGHT);
+				intervals.push_back({a,b});
+			}
+			std::interval_tree<1,float> tree(intervals);
+		#elif TREE == 2
+			std::vector<std::interval_tree<1,float>::interval> intervals;
+			for (size_t i=0;i<10;++i) {
+				intervals.push_back({
+					static_cast<float>(i  ) / 90.0f,
+					static_cast<float>(i+1) / 90.0f
+				});
+			}
+			std::interval_tree<1,float> tree(intervals);
+		#endif
 
-		#if 0
+		#define QUERY 3
+		#if QUERY == 1
 			float test_x = uniform(LEFT,RIGHT);
 
 			printf("Intervals:\n"); print_intervals(intervals);
@@ -62,10 +81,23 @@ int main(int /*argc*/, char* /*argv*/[]) {
 			std::vector<std::interval_tree<1,float>::interval> result;
 			tree.intersect(test_x,&result);
 			print_intervals(result);
-		#else
+		#elif QUERY == 2
 			std::interval_tree<1,float>::interval query;
 			query.left = uniform(LEFT,RIGHT);
 			query.right = uniform(query.left,RIGHT);
+
+			printf("Intervals:\n"); print_intervals(intervals);
+
+			printf("Query:\n"); print_interval(query);
+
+			printf("Intersects:\n");
+			std::vector<std::interval_tree<1,float>::interval> result;
+			tree.intersect(query,&result);
+			print_intervals(result);
+		#elif QUERY == 3
+			std::interval_tree<1,float>::interval query;
+			//query.left=-0.0166664999f; query.right=0.0277774986f;
+			query.left= 0.0277759954f; query.right=0.0722239986f;
 
 			printf("Intervals:\n"); print_intervals(intervals);
 
